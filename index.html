@@ -231,6 +231,11 @@ hr.dv{border:none;border-top:1px solid var(--border);margin:14px 0}
     <div class="fg"><label>GitHub Username</label><input class="inp" id="s-owner" placeholder="เช่น watchara-malasri"></div>
     <div class="fg"><label>Repository Name</label><input class="inp" id="s-repo" placeholder="เช่น watchara-dashboard"></div>
     <div class="fg"><label>Personal Access Token</label><input class="inp" id="s-token" type="password" placeholder="ghp_xxxxxxxxxxxx"></div>
+    <div class="fg"><label>🔒 รหัสผ่านเข้ารหัสข้อมูล</label><input class="inp" id="s-pw" type="password" placeholder="ตั้งรหัสผ่านสำหรับเข้ารหัสข้อมูล (จำไว้!)"></div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:16px;line-height:1.6;background:var(--bg3);border-radius:8px;padding:10px 12px">
+      🛡️ ข้อมูลทั้งหมดจะถูกเข้ารหัส AES-256 ก่อนเก็บใน GitHub — แม้คนอื่นเปิด repo ได้ก็อ่านข้อมูลไม่ออก<br>
+      ⚠️ หากลืมรหัสผ่าน ข้อมูลจะกู้คืนไม่ได้
+    </div>
 
     <button class="btn-setup" onclick="setupSave()">🚀 เริ่มใช้งาน</button>
     <div class="setup-error" id="setup-err"></div>
@@ -444,12 +449,40 @@ hr.dv{border:none;border-top:1px solid var(--border);margin:14px 0}
 
 <script>
 // ═══════════════════════════════
+// ENCRYPTION (AES-256-GCM)
+// ═══════════════════════════════
+const CRYPTO = {
+  async key(pw){
+    const enc=new TextEncoder();
+    const km=await crypto.subtle.importKey('raw',enc.encode(pw),'PBKDF2',false,['deriveKey']);
+    return crypto.subtle.deriveKey(
+      {name:'PBKDF2',salt:enc.encode('wd-dashboard-salt-2026'),iterations:100000,hash:'SHA-256'},
+      km,{name:'AES-GCM',length:256},false,['encrypt','decrypt']
+    );
+  },
+  async encrypt(data,pw){
+    const k=await this.key(pw),iv=crypto.getRandomValues(new Uint8Array(12));
+    const ct=await crypto.subtle.encrypt({name:'AES-GCM',iv},k,new TextEncoder().encode(JSON.stringify(data)));
+    const out=new Uint8Array(12+ct.byteLength);out.set(iv);out.set(new Uint8Array(ct),12);
+    return btoa(String.fromCharCode(...out));
+  },
+  async decrypt(b64,pw){
+    try{
+      const k=await this.key(pw),bytes=Uint8Array.from(atob(b64),c=>c.charCodeAt(0));
+      const pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:bytes.slice(0,12)},k,bytes.slice(12));
+      return JSON.parse(new TextDecoder().decode(pt));
+    }catch{return null;}
+  }
+};
+
+// ═══════════════════════════════
 // GITHUB API
 // ═══════════════════════════════
 const GH = {
   get token(){ return localStorage.getItem('gh-token')||'' },
   get owner(){ return localStorage.getItem('gh-owner')||'' },
   get repo (){ return localStorage.getItem('gh-repo') ||'' },
+  get pw   (){ return localStorage.getItem('gh-pw')   ||'' },
   branch: 'main',
 
   hdr(){ return { 'Authorization':`token ${this.token}`, 'Accept':'application/vnd.github.v3+json', 'Content-Type':'application/json' }; },
@@ -458,12 +491,20 @@ const GH = {
     const r = await fetch(`https://api.github.com/repos/${this.owner}/${this.repo}/contents/${path}`, { headers: this.hdr() });
     if(!r.ok) return null;
     const f = await r.json();
-    try { return { data: JSON.parse(decodeURIComponent(escape(atob(f.content.replace(/\n/g,'') )))), sha: f.sha }; }
-    catch { return { data: null, sha: f.sha }; }
+    try {
+      let parsed = JSON.parse(decodeURIComponent(escape(atob(f.content.replace(/\n/g,'')))));
+      if(parsed && parsed.__e && this.pw){
+        parsed = await CRYPTO.decrypt(parsed.__e, this.pw);
+        if(!parsed) return null;
+      }
+      return { data: parsed, sha: f.sha };
+    } catch { return { data: null, sha: f.sha }; }
   },
 
   async putFile(path, data, sha){
-    const content = btoa(unescape(encodeURIComponent(JSON.stringify(data, null, 2))));
+    let toStore = data;
+    if(this.pw){ toStore = { __e: await CRYPTO.encrypt(data, this.pw) }; }
+    const content = btoa(unescape(encodeURIComponent(JSON.stringify(toStore, null, 2))));
     const body = { message:`update ${path}`, content, branch: this.branch };
     if(sha) body.sha = sha;
     const r = await fetch(`https://api.github.com/repos/${this.owner}/${this.repo}/contents/${path}`, {
@@ -534,12 +575,15 @@ async function setupSave(){
   const owner=document.getElementById('s-owner').value.trim();
   const repo =document.getElementById('s-repo').value.trim();
   const token=document.getElementById('s-token').value.trim();
+  const pw   =document.getElementById('s-pw').value.trim();
   const err  =document.getElementById('setup-err');
   if(!owner||!repo||!token){err.style.display='block';err.textContent='กรุณากรอกข้อมูลให้ครบ';return;}
+  if(!pw){err.style.display='block';err.textContent='กรุณาตั้งรหัสผ่านเข้ารหัสข้อมูล';return;}
   err.style.display='none';
   localStorage.setItem('gh-owner',owner);
   localStorage.setItem('gh-repo',repo);
   localStorage.setItem('gh-token',token);
+  localStorage.setItem('gh-pw',pw);
   const r=await fetch(`https://api.github.com/repos/${owner}/${repo}`,{headers:{'Authorization':`token ${token}`}});
   if(!r.ok){err.style.display='block';err.textContent='ไม่พบ repo หรือ token ไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง';return;}
   startApp();
