@@ -1,6 +1,16 @@
 {
   "focus": "",
-  "goals": [],
+  "goals": [
+    {
+      "id": "ypu2jss",
+      "title": "ค้นหาตัวเอง",
+      "current": 0,
+      "target": 100,
+      "unit": "%",
+      "deadline": "",
+      "color": "#7c3aed"
+    }
+  ],
   "habits": {
     "items": [],
     "logs": {}
