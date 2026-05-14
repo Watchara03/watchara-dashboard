@@ -878,10 +878,17 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelect
 // ══════════════════════════════════════════
 // INIT
 // ══════════════════════════════════════════
+const BAKED_CONFIG = {
+  apiKey: "AIzaSyBDnFzH6GJjkEosK9oOTdpab6x-DUxH04Y",
+  authDomain: "watchara-dashboard.firebaseapp.com",
+  projectId: "watchara-dashboard",
+  storageBucket: "watchara-dashboard.firebasestorage.app",
+  messagingSenderId: "477581689722",
+  appId: "1:477581689722:web:5df550d15bd29251d90cc3"
+};
+
 window.onload = () => {
-  const cfg = loadConfig();
-  if (cfg) initFirebase(cfg);
-  else showScreen('setup');
+  initFirebase(BAKED_CONFIG);
 };
 </script>
 </body>
