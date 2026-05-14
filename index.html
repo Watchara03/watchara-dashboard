@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>Watchara — Dashboard</title>
+
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
 <style>
 :root{
   --bg:#0f0f1a;--bg2:#181828;--bg3:#21213a;--bg4:#2a2a45;
@@ -18,29 +24,36 @@
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
 
-/* ── Setup Screen ── */
-#setup{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px}
-.setup-box{background:var(--bg2);border:1px solid var(--border2);border-radius:20px;padding:36px;width:480px;max-width:100%}
-.setup-logo{font-size:32px;margin-bottom:8px}
-.setup-title{font-size:22px;font-weight:700;margin-bottom:6px;color:var(--accent-l)}
-.setup-sub{font-size:13px;color:var(--muted);margin-bottom:28px;line-height:1.6}
-.setup-step{background:var(--bg3);border-radius:10px;padding:16px;margin-bottom:12px;border-left:3px solid var(--accent)}
-.setup-step-num{font-size:11px;font-weight:700;color:var(--accent-l);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
-.setup-step p{font-size:13px;color:var(--muted);line-height:1.6}
-.setup-step code{background:rgba(124,58,237,.2);color:var(--accent-l);padding:1px 6px;border-radius:4px;font-size:12px}
+/* ── Setup / Login Screen ── */
+.screen{display:none;align-items:center;justify-content:center;min-height:100vh;padding:24px}
+.screen.show{display:flex}
+.box{background:var(--bg2);border:1px solid var(--border2);border-radius:20px;padding:36px;width:480px;max-width:100%}
+.box-logo{font-size:36px;margin-bottom:10px}
+.box-title{font-size:22px;font-weight:700;margin-bottom:6px;color:var(--accent-l)}
+.box-sub{font-size:13px;color:var(--muted);margin-bottom:24px;line-height:1.6}
+.step-card{background:var(--bg3);border-radius:10px;padding:14px 16px;margin-bottom:10px;border-left:3px solid var(--accent)}
+.step-num{font-size:10px;font-weight:700;color:var(--accent-l);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px}
+.step-card p{font-size:12px;color:var(--muted);line-height:1.7}
+.step-card code{background:rgba(124,58,237,.2);color:var(--accent-l);padding:1px 6px;border-radius:4px;font-size:11px}
+.step-card a{color:var(--accent-l)}
 .fg{margin-bottom:14px}
 .fg label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px;font-weight:600}
-.inp{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 14px;color:var(--text);font-size:14px;outline:none;font-family:inherit}
+.inp{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 14px;color:var(--text);font-size:13px;outline:none;font-family:monospace}
 .inp:focus{border-color:var(--accent-l)}
-.inp::placeholder{color:var(--muted)}
-.btn-setup{width:100%;padding:13px;border:none;border-radius:10px;background:var(--accent);color:#fff;font-size:15px;font-weight:700;cursor:pointer;margin-top:8px}
-.btn-setup:hover{background:var(--accent-l)}
-.setup-error{background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);border-radius:8px;padding:10px 14px;font-size:13px;color:var(--danger);margin-top:10px;display:none}
+textarea.inp{height:140px;resize:vertical;font-size:12px}
+.btn-main{width:100%;padding:13px;border:none;border-radius:10px;background:var(--accent);color:#fff;font-size:15px;font-weight:700;cursor:pointer;margin-top:6px;display:flex;align-items:center;justify-content:center;gap:10px}
+.btn-main:hover{background:var(--accent-l)}
+.btn-main:disabled{opacity:.5;cursor:not-allowed}
+.err-box{background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);border-radius:8px;padding:10px 14px;font-size:13px;color:var(--danger);margin-top:10px;display:none}
+
+/* Google button */
+.btn-google{width:100%;padding:13px;border:1px solid var(--border2);border-radius:10px;background:var(--bg3);color:var(--text);font-size:15px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:12px;margin-top:8px;transition:all .2s}
+.btn-google:hover{background:var(--bg4);border-color:var(--accent-l)}
+.google-icon{width:20px;height:20px}
 
 /* ── App Shell ── */
 #app{display:none;flex-direction:column;height:100vh}
 #app.visible{display:flex}
-
 .shell{display:flex;flex:1;min-height:0}
 
 /* Sidebar */
@@ -54,11 +67,15 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 .nav-item.active{color:var(--text);background:var(--bg3);border-left-color:var(--accent-l)}
 .nav-icon{font-size:17px}
 .sidebar-footer{padding:14px 20px;border-top:1px solid var(--border);margin-top:auto}
+.user-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.user-avatar{width:28px;height:28px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;overflow:hidden}
+.user-avatar img{width:100%;height:100%;object-fit:cover}
+.user-name{font-size:11px;color:var(--muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .clock-time{font-size:22px;font-weight:700;color:var(--accent-l);font-variant-numeric:tabular-nums}
 .clock-date{font-size:11px;color:var(--muted);margin-top:2px}
 .sync-row{display:flex;align-items:center;gap:6px;margin-top:8px}
 .dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
-.dot.ok{background:var(--success)}.dot.err{background:var(--danger)}.dot.loading{background:var(--warn);animation:pulse 1s infinite}
+.dot.ok{background:var(--success)}.dot.err{background:var(--danger)}.dot.spin{background:var(--warn);animation:pulse 1s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 .sync-btn{margin-left:auto;font-size:11px;color:var(--muted);cursor:pointer;background:none;border:none;padding:2px 4px}
 .sync-btn:hover{color:var(--accent-l)}
@@ -98,8 +115,6 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 
 /* Matrix */
 .matrix-wrap{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:auto auto;gap:10px}
-.matrix-labels{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:0}
-.matrix-label{text-align:center;font-size:11px;font-weight:600;color:var(--muted);padding:4px 0}
 .quadrant{border-radius:14px;padding:14px;display:flex;flex-direction:column;min-height:200px}
 .q1-bg{background:var(--q1-dim);border:2px solid rgba(239,68,68,.35)}
 .q2-bg{background:var(--q2-dim);border:2px solid rgba(16,185,129,.35)}
@@ -123,7 +138,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 .task-card:hover .tc-del{opacity:1}
 .q-add{display:flex;gap:6px;margin-top:8px}
 .q-inp{flex:1;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:6px;padding:6px 9px;color:var(--text);font-size:12px;outline:none}
-.q-inp:focus{border-color:var(--accent-l)}::placeholder{color:var(--muted)}
+.q-inp:focus{border-color:var(--accent-l)}
 .q-add-btn{width:28px;height:28px;border:none;border-radius:6px;background:var(--accent);color:#fff;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 
 /* Goals */
@@ -184,8 +199,6 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 .modal{background:var(--bg2);border:1px solid var(--border2);border-radius:16px;padding:24px;width:460px;max-width:92vw;max-height:92vh;overflow-y:auto}
 .modal-title{font-size:17px;font-weight:700;margin-bottom:18px;display:flex;justify-content:space-between;align-items:center}
 .modal-close{cursor:pointer;color:var(--muted);font-size:20px;padding:2px 6px}
-.fg{margin-bottom:13px}
-.fg label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px;font-weight:500}
 .finp{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:9px 13px;color:var(--text);font-size:13px;outline:none;font-family:inherit}
 .finp:focus{border-color:var(--accent-l)}
 select.finp{cursor:pointer}
@@ -211,45 +224,67 @@ hr.dv{border:none;border-top:1px solid var(--border);margin:14px 0}
 <body>
 
 <!-- ══════ SETUP SCREEN ══════ -->
-<div id="setup">
-  <div class="setup-box">
-    <div class="setup-logo">⚡</div>
-    <div class="setup-title">Watchara Dashboard</div>
-    <div class="setup-sub">ตั้งค่าครั้งเดียว ใช้ได้ทุก device ตลอดไป<br>ข้อมูลเก็บใน GitHub ของคุณเอง — ไม่มีเซิร์ฟเวอร์</div>
+<div class="screen" id="screen-setup">
+  <div class="box">
+    <div class="box-logo">⚡</div>
+    <div class="box-title">ตั้งค่า Firebase (ครั้งแรก)</div>
+    <div class="box-sub">ทำแค่ครั้งเดียว ใช้ได้ตลอดไปทุก device<br>ข้อมูลเป็น <strong>Private</strong> — เข้าถึงได้เฉพาะคุณเท่านั้น</div>
 
-    <div class="setup-step">
-      <div class="setup-step-num">Step 1 — สร้าง GitHub Token</div>
-      <p>ไปที่ <code>github.com → Settings → Developer Settings → Personal Access Tokens → Tokens (classic)</code><br>
-      กด <code>Generate new token</code> → เลือก scope: <code>repo</code> → Copy token</p>
+    <div class="step-card">
+      <div class="step-num">Step 1 — สร้าง Firebase Project</div>
+      <p>ไปที่ <a href="https://console.firebase.google.com" target="_blank">console.firebase.google.com</a><br>
+      กด <code>Create a project</code> → ตั้งชื่อ → ปิด Google Analytics → <code>Create</code></p>
     </div>
-    <div class="setup-step">
-      <div class="setup-step-num">Step 2 — สร้าง Repo</div>
-      <p>สร้าง repository ชื่ออะไรก็ได้ เช่น <code>watchara-dashboard</code><br>
-      ตั้งเป็น <code>Public</code> → Enable <code>GitHub Pages</code> (Settings → Pages → main)</p>
+    <div class="step-card">
+      <div class="step-num">Step 2 — เพิ่ม Web App + Copy Config</div>
+      <p>ใน Project → กด icon <code>&lt;/&gt;</code> (Web) → ตั้งชื่อ App → <code>Register</code><br>
+      จะเห็น <code>firebaseConfig = {...}</code> → Copy ทั้งก้อนวางในช่องด้านล่าง</p>
     </div>
-
-    <div class="fg"><label>GitHub Username</label><input class="inp" id="s-owner" placeholder="เช่น watchara-malasri"></div>
-    <div class="fg"><label>Repository Name</label><input class="inp" id="s-repo" placeholder="เช่น watchara-dashboard"></div>
-    <div class="fg"><label>Personal Access Token</label><input class="inp" id="s-token" type="password" placeholder="ghp_xxxxxxxxxxxx"></div>
-    <div class="fg"><label>🔒 รหัสผ่านเข้ารหัสข้อมูล</label><input class="inp" id="s-pw" type="password" placeholder="ตั้งรหัสผ่านสำหรับเข้ารหัสข้อมูล (จำไว้!)"></div>
-    <div style="font-size:11px;color:var(--muted);margin-bottom:16px;line-height:1.6;background:var(--bg3);border-radius:8px;padding:10px 12px">
-      🛡️ ข้อมูลทั้งหมดจะถูกเข้ารหัส AES-256 ก่อนเก็บใน GitHub — แม้คนอื่นเปิด repo ได้ก็อ่านข้อมูลไม่ออก<br>
-      ⚠️ หากลืมรหัสผ่าน ข้อมูลจะกู้คืนไม่ได้
+    <div class="step-card">
+      <div class="step-num">Step 3 — เปิด Google Login + Firestore</div>
+      <p><strong>Authentication:</strong> Build → Authentication → Get started → Google → Enable → Save<br>
+      <strong>Firestore:</strong> Build → Firestore Database → Create database → Start in test mode → Done</p>
     </div>
 
-    <button class="btn-setup" onclick="setupSave()">🚀 เริ่มใช้งาน</button>
-    <div class="setup-error" id="setup-err"></div>
+    <div class="fg" style="margin-top:20px">
+      <label>วาง Firebase Config ที่นี่</label>
+      <textarea class="inp" id="cfg-input" placeholder='วาง firebaseConfig จาก Firebase Console เช่น:
+{
+  "apiKey": "AIzaSy...",
+  "authDomain": "project-xxx.firebaseapp.com",
+  "projectId": "project-xxx",
+  ...
+}'></textarea>
+    </div>
+    <button class="btn-main" onclick="saveConfig()">✅ บันทึก Config</button>
+    <div class="err-box" id="cfg-err"></div>
+  </div>
+</div>
+
+<!-- ══════ LOGIN SCREEN ══════ -->
+<div class="screen" id="screen-login">
+  <div class="box" style="text-align:center">
+    <div class="box-logo">🔐</div>
+    <div class="box-title">เข้าสู่ระบบ</div>
+    <div class="box-sub">ใช้ Gmail account เดิมได้เลย<br>ข้อมูลถูกเก็บใน Firestore — เป็น <strong>private</strong> ของคุณคนเดียว</div>
+    <button class="btn-google" onclick="signInGoogle()">
+      <svg class="google-icon" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"/><path fill="#FF3D00" d="m6.306 14.691 6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z"/><path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238A11.91 11.91 0 0 1 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"/><path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303a12.04 12.04 0 0 1-4.087 5.571l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z"/></svg>
+      เข้าสู่ระบบด้วย Google
+    </button>
+    <div class="err-box" id="login-err" style="text-align:left;margin-top:12px"></div>
+    <div style="margin-top:16px">
+      <span style="font-size:11px;color:var(--muted);cursor:pointer" onclick="resetConfig()">⚙️ เปลี่ยน Firebase Config</span>
+    </div>
   </div>
 </div>
 
 <!-- ══════ APP ══════ -->
 <div id="app">
   <div class="shell">
-    <!-- Sidebar -->
     <nav class="sidebar">
       <div class="logo">
         <div class="logo-title">⚡ Watchara</div>
-        <div class="logo-sub">Dashboard · Cloud</div>
+        <div class="logo-sub">Dashboard · Firebase</div>
       </div>
       <div style="flex:1;overflow-y:auto">
         <div class="nav-section">หน้าหลัก</div>
@@ -263,24 +298,25 @@ hr.dv{border:none;border-top:1px solid var(--border);margin:14px 0}
         <div class="nav-item" data-p="calendar" onclick="nav('calendar')"><span class="nav-icon">📅</span>Calendar</div>
       </div>
       <div class="sidebar-footer">
+        <div class="user-row">
+          <div class="user-avatar" id="user-avatar">?</div>
+          <div class="user-name" id="user-name">...</div>
+          <span style="font-size:11px;color:var(--muted);cursor:pointer;flex-shrink:0" onclick="signOut()" title="ออกจากระบบ">⏏️</span>
+        </div>
         <div class="clock-time" id="clock">--:--</div>
         <div class="clock-date" id="clock-date"></div>
         <div class="sync-row">
-          <div class="dot loading" id="sync-dot"></div>
-          <span id="sync-txt" style="font-size:10px;color:var(--muted)">กำลังโหลด...</span>
-          <button class="sync-btn" onclick="syncAll()" title="Sync ตอนนี้">🔄</button>
-        </div>
-        <div style="margin-top:8px">
-          <span style="font-size:10px;color:var(--muted);cursor:pointer" onclick="resetSetup()">⚙️ ตั้งค่าใหม่</span>
+          <div class="dot ok" id="sync-dot"></div>
+          <span id="sync-txt" style="font-size:10px;color:var(--muted)">Real-time sync</span>
+          <button class="sync-btn" onclick="forceSync()" title="Sync">🔄</button>
         </div>
       </div>
     </nav>
 
-    <!-- Main -->
     <main class="main">
       <!-- OVERVIEW -->
       <div class="page active" id="page-overview">
-        <div class="ph"><div><h1 id="greeting">สวัสดี Watchara 👋</h1><p id="today-str"></p></div></div>
+        <div class="ph"><div><h1 id="greeting">สวัสดี 👋</h1><p id="today-str"></p></div></div>
         <div class="card">
           <div class="card-title">🎯 Focus วันนี้</div>
           <input class="focus-inp" id="focus-inp" placeholder="วันนี้ฉันจะทำอะไรให้ได้?..." oninput="saveFocusDebounced()">
@@ -301,13 +337,13 @@ hr.dv{border:none;border-top:1px solid var(--border);margin:14px 0}
             <hr class="dv">
             <div class="card-title" style="margin-bottom:8px">✍️ Quick Capture</div>
             <div class="qcap">
-              <input id="qc-inp" placeholder="จดความคิดด่วน → Q1 (เร่งด่วน+สำคัญ)..." onkeydown="if(event.key==='Enter')quickCapture()">
+              <input id="qc-inp" placeholder="จดความคิดด่วน → Q1..." onkeydown="if(event.key==='Enter')quickCapture()">
               <button class="btn btn-primary btn-sm" onclick="quickCapture()">+ เพิ่ม</button>
             </div>
           </div>
           <div class="card" style="margin-bottom:0">
             <div class="card-title" style="display:flex;justify-content:space-between">
-              <span>📊 Goals 2026</span>
+              <span>📊 Goals</span>
               <span style="font-size:11px;color:var(--accent-l);cursor:pointer" onclick="nav('goals')">แก้ไข →</span>
             </div>
             <div id="ov-goals"></div>
@@ -322,8 +358,8 @@ hr.dv{border:none;border-top:1px solid var(--border);margin:14px 0}
           <button class="btn btn-primary" onclick="openModal('m-task')">+ Task</button>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
-          <div class="matrix-label" style="text-align:center;font-size:11px;color:var(--muted);font-weight:600">⬅ เร่งด่วน</div>
-          <div class="matrix-label" style="text-align:center;font-size:11px;color:var(--muted);font-weight:600">ไม่เร่งด่วน ➡</div>
+          <div style="text-align:center;font-size:11px;color:var(--muted);font-weight:600">⬅ เร่งด่วน</div>
+          <div style="text-align:center;font-size:11px;color:var(--muted);font-weight:600">ไม่เร่งด่วน ➡</div>
         </div>
         <div class="matrix-wrap" id="matrix-grid"></div>
       </div>
@@ -336,7 +372,7 @@ hr.dv{border:none;border-top:1px solid var(--border);margin:14px 0}
 
       <!-- GOALS -->
       <div class="page" id="page-goals">
-        <div class="ph"><div><h1>📊 Goals 2026</h1></div><button class="btn btn-primary" onclick="openGoalModal()">+ เป้าหมาย</button></div>
+        <div class="ph"><div><h1>📊 Goals</h1></div><button class="btn btn-primary" onclick="openGoalModal()">+ เป้าหมาย</button></div>
         <div class="ghalf">
           <div id="goals-list"></div>
           <div class="card"><div class="card-title">📈 Chart</div><canvas id="goals-chart" height="300"></canvas></div>
@@ -377,8 +413,8 @@ hr.dv{border:none;border-top:1px solid var(--border);margin:14px 0}
   </div>
 </div>
 
-<!-- Saving Toast -->
-<div class="saving-toast" id="toast"><div class="dot loading"></div><span id="toast-msg">กำลังบันทึก...</span></div>
+<!-- Toast -->
+<div class="saving-toast" id="toast"><div class="dot spin"></div><span id="toast-msg">กำลังบันทึก...</span></div>
 
 <!-- MODALS -->
 <div class="overlay" id="m-task">
@@ -398,7 +434,6 @@ hr.dv{border:none;border-top:1px solid var(--border);margin:14px 0}
     <div class="ma"><button class="btn btn-ghost" onclick="closeModal('m-task')">ยกเลิก</button><button class="btn btn-primary" onclick="addTask()">เพิ่ม</button></div>
   </div>
 </div>
-
 <div class="overlay" id="m-goal">
   <div class="modal">
     <div class="modal-title"><span id="gm-t">+ เป้าหมาย</span><span class="modal-close" onclick="closeModal('m-goal')">✕</span></div>
@@ -416,7 +451,6 @@ hr.dv{border:none;border-top:1px solid var(--border);margin:14px 0}
     <div class="ma"><button class="btn btn-ghost" onclick="closeModal('m-goal')">ยกเลิก</button><button class="btn btn-primary" onclick="saveGoal()">บันทึก</button></div>
   </div>
 </div>
-
 <div class="overlay" id="m-proj">
   <div class="modal">
     <div class="modal-title"><span id="pm-t">+ Project</span><span class="modal-close" onclick="closeModal('m-proj')">✕</span></div>
@@ -438,7 +472,6 @@ hr.dv{border:none;border-top:1px solid var(--border);margin:14px 0}
     <div class="ma"><button class="btn btn-ghost" onclick="closeModal('m-proj')">ยกเลิก</button><button class="btn btn-primary" onclick="saveProject()">บันทึก</button></div>
   </div>
 </div>
-
 <div class="overlay" id="m-habit">
   <div class="modal">
     <div class="modal-title"><span>+ นิสัยใหม่</span><span class="modal-close" onclick="closeModal('m-habit')">✕</span></div>
@@ -448,194 +481,186 @@ hr.dv{border:none;border-top:1px solid var(--border);margin:14px 0}
 </div>
 
 <script>
-// ═══════════════════════════════
-// ENCRYPTION (AES-256-GCM)
-// ═══════════════════════════════
-const CRYPTO = {
-  async key(pw){
-    const enc=new TextEncoder();
-    const km=await crypto.subtle.importKey('raw',enc.encode(pw),'PBKDF2',false,['deriveKey']);
-    return crypto.subtle.deriveKey(
-      {name:'PBKDF2',salt:enc.encode('wd-dashboard-salt-2026'),iterations:100000,hash:'SHA-256'},
-      km,{name:'AES-GCM',length:256},false,['encrypt','decrypt']
-    );
-  },
-  async encrypt(data,pw){
-    const k=await this.key(pw),iv=crypto.getRandomValues(new Uint8Array(12));
-    const ct=await crypto.subtle.encrypt({name:'AES-GCM',iv},k,new TextEncoder().encode(JSON.stringify(data)));
-    const out=new Uint8Array(12+ct.byteLength);out.set(iv);out.set(new Uint8Array(ct),12);
-    return btoa(String.fromCharCode(...out));
-  },
-  async decrypt(b64,pw){
-    try{
-      const k=await this.key(pw),bytes=Uint8Array.from(atob(b64),c=>c.charCodeAt(0));
-      const pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:bytes.slice(0,12)},k,bytes.slice(12));
-      return JSON.parse(new TextDecoder().decode(pt));
-    }catch{return null;}
+// ══════════════════════════════════════════
+// CONFIG & AUTH
+// ══════════════════════════════════════════
+let fbApp, auth, db, uid = null;
+let TASKS = [], DATA = { focus:'', goals:[], habits:{items:[],logs:{}}, projects:[] };
+let unsub1, unsub2;
+
+function loadConfig() {
+  const raw = localStorage.getItem('fb-config');
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch { return null; }
+}
+
+function saveConfig() {
+  const raw = document.getElementById('cfg-input').value.trim();
+  const err = document.getElementById('cfg-err');
+  let cfg = raw;
+  // strip "const firebaseConfig = " wrapper if pasted
+  cfg = cfg.replace(/^[\s\S]*?firebaseConfig\s*=\s*/, '').replace(/;[\s\S]*$/, '').trim();
+  try {
+    const parsed = JSON.parse(cfg);
+    if (!parsed.apiKey || !parsed.projectId) throw new Error('missing fields');
+    localStorage.setItem('fb-config', JSON.stringify(parsed));
+    err.style.display = 'none';
+    initFirebase(parsed);
+  } catch {
+    err.style.display = 'block';
+    err.textContent = 'Config ไม่ถูกต้อง — กรุณาวาง firebaseConfig จาก Firebase Console ใหม่';
   }
-};
+}
 
-// ═══════════════════════════════
-// GITHUB API
-// ═══════════════════════════════
-const GH = {
-  get token(){ return localStorage.getItem('gh-token')||'' },
-  get owner(){ return localStorage.getItem('gh-owner')||'' },
-  get repo (){ return localStorage.getItem('gh-repo') ||'' },
-  get pw   (){ return localStorage.getItem('gh-pw')   ||'' },
-  branch: 'main',
+function resetConfig() {
+  localStorage.removeItem('fb-config');
+  location.reload();
+}
 
-  hdr(){ return { 'Authorization':`token ${this.token}`, 'Accept':'application/vnd.github.v3+json', 'Content-Type':'application/json' }; },
+function initFirebase(cfg) {
+  if (fbApp) return;
+  fbApp = firebase.initializeApp(cfg);
+  auth = firebase.auth();
+  db   = firebase.firestore();
+  db.settings({ experimentalForceLongPolling: false });
 
-  async getFile(path){
-    const r = await fetch(`https://api.github.com/repos/${this.owner}/${this.repo}/contents/${path}`, { headers: this.hdr() });
-    if(!r.ok) return null;
-    const f = await r.json();
-    try {
-      let parsed = JSON.parse(decodeURIComponent(escape(atob(f.content.replace(/\n/g,'')))));
-      if(parsed && parsed.__e && this.pw){
-        parsed = await CRYPTO.decrypt(parsed.__e, this.pw);
-        if(!parsed) return null;
-      }
-      return { data: parsed, sha: f.sha };
-    } catch { return { data: null, sha: f.sha }; }
-  },
+  auth.onAuthStateChanged(user => {
+    if (user) {
+      uid = user.uid;
+      showApp(user);
+    } else {
+      showScreen('login');
+    }
+  });
+}
 
-  async putFile(path, data, sha){
-    let toStore = data;
-    if(this.pw){ toStore = { __e: await CRYPTO.encrypt(data, this.pw) }; }
-    const content = btoa(unescape(encodeURIComponent(JSON.stringify(toStore, null, 2))));
-    const body = { message:`update ${path}`, content, branch: this.branch };
-    if(sha) body.sha = sha;
-    const r = await fetch(`https://api.github.com/repos/${this.owner}/${this.repo}/contents/${path}`, {
-      method:'PUT', headers: this.hdr(), body: JSON.stringify(body)
-    });
-    const res = await r.json();
-    return r.ok ? res.content.sha : null;
-  },
-
-  async createIfMissing(path, defaultData){
-    const f = await this.getFile(path);
-    if(f) return f;
-    const sha = await this.putFile(path, defaultData, null);
-    return { data: defaultData, sha };
+async function signInGoogle() {
+  const err = document.getElementById('login-err');
+  err.style.display = 'none';
+  try {
+    const provider = new firebase.auth.GoogleAuthProvider();
+    await auth.signInWithPopup(provider);
+  } catch(e) {
+    err.style.display = 'block';
+    err.textContent = 'เข้าสู่ระบบไม่สำเร็จ: ' + e.message;
   }
-};
+}
 
-// ═══════════════════════════════
-// DEFAULT DATA
-// ═══════════════════════════════
-const DEF_TASKS = [];
-const DEF_DATA = {
-  focus: '',
-  goals: [],
-  habits: { items: [], logs: {} },
-  projects: [],
-};
+function signOut() {
+  if (!confirm('ออกจากระบบ?')) return;
+  if (unsub1) unsub1();
+  if (unsub2) unsub2();
+  auth.signOut();
+}
 
-// ═══════════════════════════════
-// STATE & SHA CACHE
-// ═══════════════════════════════
-let TASKS = [], DATA = {}, SHAS = {};
-const uid = () => Math.random().toString(36).slice(2,9);
+// ══════════════════════════════════════════
+// SCREENS
+// ══════════════════════════════════════════
+function showScreen(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('show'));
+  document.getElementById('app').classList.remove('visible');
+  const el = document.getElementById('screen-' + name);
+  if (el) el.classList.add('show');
+}
+
+function showApp(user) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('show'));
+  document.getElementById('app').classList.add('visible');
+  // user info
+  const av = document.getElementById('user-avatar');
+  if (user.photoURL) av.innerHTML = `<img src="${user.photoURL}">`;
+  else av.textContent = (user.displayName || user.email || '?')[0].toUpperCase();
+  document.getElementById('user-name').textContent = user.displayName || user.email || '';
+  startListeners();
+  tick();
+}
+
+// ══════════════════════════════════════════
+// FIRESTORE REAL-TIME LISTENERS
+// ══════════════════════════════════════════
+function tasksRef() { return db.collection('users').doc(uid).collection('data').doc('tasks'); }
+function appRef()   { return db.collection('users').doc(uid).collection('data').doc('app'); }
+
+function startListeners() {
+  setSyncStatus('spin', 'กำลังโหลด...');
+
+  unsub1 = tasksRef().onSnapshot(doc => {
+    TASKS = doc.exists ? (doc.data().items || []) : [];
+    renderCurrent();
+    setSyncStatus('ok', 'Real-time · ' + new Date().toLocaleTimeString('th'));
+  }, () => setSyncStatus('err', 'ไม่มีอินเทอร์เน็ต'));
+
+  unsub2 = appRef().onSnapshot(doc => {
+    if (doc.exists) {
+      DATA = { focus:'', goals:[], habits:{items:[],logs:{}}, projects:[], ...doc.data() };
+    }
+    renderCurrent();
+    setSyncStatus('ok', 'Real-time · ' + new Date().toLocaleTimeString('th'));
+  }, () => setSyncStatus('err', 'ไม่มีอินเทอร์เน็ต'));
+}
+
+async function forceSync() {
+  setSyncStatus('spin', 'กำลัง sync...');
+  try {
+    const [t, a] = await Promise.all([tasksRef().get(), appRef().get()]);
+    TASKS = t.exists ? (t.data().items || []) : [];
+    if (a.exists) DATA = { focus:'', goals:[], habits:{items:[],logs:{}}, projects:[], ...a.data() };
+    renderCurrent();
+    setSyncStatus('ok', 'Synced · ' + new Date().toLocaleTimeString('th'));
+  } catch { setSyncStatus('err', 'Sync ล้มเหลว'); }
+}
+
+async function saveTasks() {
+  showToast('บันทึก...');
+  await tasksRef().set({ items: TASKS });
+  hideToast();
+}
+
+async function saveData() {
+  showToast('บันทึก...');
+  await appRef().set(DATA);
+  hideToast();
+}
+
+function setSyncStatus(state, msg) {
+  document.getElementById('sync-dot').className = 'dot ' + state;
+  document.getElementById('sync-txt').textContent = msg;
+}
+
+function showToast(msg) { document.getElementById('toast-msg').textContent = msg; document.getElementById('toast').classList.add('show'); }
+function hideToast() { document.getElementById('toast').classList.remove('show'); }
+
+// ══════════════════════════════════════════
+// UTILITIES
+// ══════════════════════════════════════════
+const uid2 = () => Math.random().toString(36).slice(2,9);
 const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 const fmt = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 const today = () => fmt(new Date());
 const DAYS_TH = ['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์'];
 const DAYS_S  = ['อา','จ','อ','พ','พฤ','ศ','ส'];
 const MON_TH  = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
-function weekDates(){ const t=new Date(),dow=(t.getDay()+6)%7,mon=new Date(t);mon.setDate(t.getDate()-dow);return Array.from({length:7},(_,i)=>{const d=new Date(mon);d.setDate(mon.getDate()+i);return d;}); }
-
-// ═══════════════════════════════
-// SETUP
-// ═══════════════════════════════
-async function setupSave(){
-  const owner=document.getElementById('s-owner').value.trim();
-  const repo =document.getElementById('s-repo').value.trim();
-  const token=document.getElementById('s-token').value.trim();
-  const pw   =document.getElementById('s-pw').value.trim();
-  const err  =document.getElementById('setup-err');
-  if(!owner||!repo||!token){err.style.display='block';err.textContent='กรุณากรอกข้อมูลให้ครบ';return;}
-  if(!pw){err.style.display='block';err.textContent='กรุณาตั้งรหัสผ่านเข้ารหัสข้อมูล';return;}
-  err.style.display='none';
-  localStorage.setItem('gh-owner',owner);
-  localStorage.setItem('gh-repo',repo);
-  localStorage.setItem('gh-token',token);
-  localStorage.setItem('gh-pw',pw);
-  const r=await fetch(`https://api.github.com/repos/${owner}/${repo}`,{headers:{'Authorization':`token ${token}`}});
-  if(!r.ok){err.style.display='block';err.textContent='ไม่พบ repo หรือ token ไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง';return;}
-  startApp();
+function weekDates() {
+  const t=new Date(), dow=(t.getDay()+6)%7, mon=new Date(t);
+  mon.setDate(t.getDate()-dow);
+  return Array.from({length:7},(_,i)=>{ const d=new Date(mon); d.setDate(mon.getDate()+i); return d; });
 }
 
-function resetSetup(){
-  if(!confirm('รีเซ็ตการตั้งค่า?'))return;
-  localStorage.removeItem('gh-owner');localStorage.removeItem('gh-repo');localStorage.removeItem('gh-token');
-  location.reload();
-}
-
-// ═══════════════════════════════
-// INIT
-// ═══════════════════════════════
-window.onload = () => {
-  if(GH.token&&GH.owner&&GH.repo) startApp();
-  else{document.getElementById('setup').style.display='flex';}
-  setInterval(tick,1000); tick();
-};
-
-async function startApp(){
-  document.getElementById('setup').style.display='none';
-  document.getElementById('app').classList.add('visible');
-  await syncAll();
-}
-
-// ═══════════════════════════════
-// SYNC
-// ═══════════════════════════════
-function setSyncStatus(state,msg){
-  const dot=document.getElementById('sync-dot'),txt=document.getElementById('sync-txt');
-  dot.className='dot '+(state==='ok'?'ok':state==='err'?'err':'loading');
-  txt.textContent=msg;
-}
-
-async function syncAll(){
-  setSyncStatus('loading','กำลัง sync...');
-  try {
-    const [tf,df] = await Promise.all([
-      GH.createIfMissing('data/tasks.json', DEF_TASKS),
-      GH.createIfMissing('data/app.json',   DEF_DATA),
-    ]);
-    if(!tf||!df){setSyncStatus('err','Sync ล้มเหลว');return;}
-    TASKS=tf.data||DEF_TASKS; SHAS.tasks=tf.sha;
-    DATA =df.data||DEF_DATA;  SHAS.app  =df.sha;
-    setSyncStatus('ok','Synced · '+new Date().toLocaleTimeString('th'));
-    const p=document.querySelector('.page.active')?.id?.replace('page-','');
-    if(p&&renders[p])renders[p]();
-  } catch(e){setSyncStatus('err','ไม่มีอินเทอร์เน็ต');}
-}
-
-async function saveTasks(){ showToast('บันทึก tasks...'); SHAS.tasks=await GH.putFile('data/tasks.json',TASKS,SHAS.tasks)||SHAS.tasks; hideToast(); }
-async function saveData(){ showToast('บันทึกข้อมูล...'); SHAS.app=await GH.putFile('data/app.json',DATA,SHAS.app)||SHAS.app; hideToast(); }
-
-function showToast(msg){const t=document.getElementById('toast');document.getElementById('toast-msg').textContent=msg;t.classList.add('show');}
-function hideToast(){document.getElementById('toast').classList.remove('show');}
-
-// auto sync every 60s
-setInterval(syncAll,60000);
-
-// ═══════════════════════════════
-// CLOCK
-// ═══════════════════════════════
-function tick(){
+function tick() {
   const n=new Date();
   document.getElementById('clock').textContent=`${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}`;
   document.getElementById('clock-date').textContent=`${DAYS_S[n.getDay()]} ${n.getDate()} ${MON_TH[n.getMonth()].slice(0,3)}. ${n.getFullYear()+543}`;
 }
+setInterval(tick,1000);
 
-// ═══════════════════════════════
+// ══════════════════════════════════════════
 // NAV
-// ═══════════════════════════════
-const renders={overview:renderOverview,matrix:renderMatrix,projects:renderProjects,goals:renderGoals,habits:renderHabits,calendar:renderCalendar};
-function nav(p){
+// ══════════════════════════════════════════
+const renders = { overview:renderOverview, matrix:renderMatrix, projects:renderProjects, goals:renderGoals, habits:renderHabits, calendar:renderCalendar };
+let currentPage = 'overview';
+
+function nav(p) {
+  currentPage = p;
   document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
   document.getElementById('page-'+p).classList.add('active');
@@ -643,12 +668,16 @@ function nav(p){
   renders[p]&&renders[p]();
 }
 
-// ═══════════════════════════════
+function renderCurrent() {
+  if (renders[currentPage]) renders[currentPage]();
+}
+
+// ══════════════════════════════════════════
 // OVERVIEW
-// ═══════════════════════════════
-function renderOverview(){
-  const n=new Date(),h=n.getHours();
-  document.getElementById('greeting').textContent=(h<12?'สวัสดีตอนเช้า':h<17?'สวัสดีตอนบ่าย':'สวัสดีตอนเย็น')+', Watchara 👋';
+// ══════════════════════════════════════════
+function renderOverview() {
+  const n=new Date(), h=n.getHours();
+  document.getElementById('greeting').textContent=(h<12?'สวัสดีตอนเช้า':h<17?'สวัสดีตอนบ่าย':'สวัสดีตอนเย็น')+' 👋';
   document.getElementById('today-str').textContent=`วัน${DAYS_TH[n.getDay()]}ที่ ${n.getDate()} ${MON_TH[n.getMonth()]} ${n.getFullYear()+543}`;
   document.getElementById('focus-inp').value=DATA.focus||'';
   const done=TASKS.filter(t=>t.completed).length, q1=TASKS.filter(t=>t.quadrant==='Q1'&&!t.completed).length;
@@ -672,36 +701,36 @@ function renderOverview(){
       <div class="pbar"><div class="pbar-fill" style="width:${pct}%;background:${g.color}"></div></div>
       <div style="font-size:10px;color:var(--muted)">${g.current} / ${g.target} ${g.unit}</div>
     </div>`;
-  }).join('');
+  }).join('') || '<div style="color:var(--muted);font-size:13px">ยังไม่มีเป้าหมาย — ไปเพิ่มที่ Goals</div>';
 }
 
 let focusT;
-function saveFocusDebounced(){clearTimeout(focusT);focusT=setTimeout(async()=>{DATA.focus=document.getElementById('focus-inp').value;await saveData();},1000);}
+function saveFocusDebounced() { clearTimeout(focusT); focusT=setTimeout(async()=>{ DATA.focus=document.getElementById('focus-inp').value; await saveData(); },1200); }
 
-async function quickCapture(){
-  const inp=document.getElementById('qc-inp'),txt=inp.value.trim();if(!txt)return;inp.value='';
-  TASKS.push({id:uid(),text:txt,quadrant:'Q1',project:'',completed:false,dueDate:''});
+async function quickCapture() {
+  const inp=document.getElementById('qc-inp'), txt=inp.value.trim(); if(!txt)return; inp.value='';
+  TASKS.push({id:uid2(),text:txt,quadrant:'Q1',project:'',completed:false,dueDate:''});
   await saveTasks(); renderOverview();
 }
 
-async function toggleTask(id,done){
-  const t=TASKS.find(x=>x.id===id);if(!t)return;t.completed=done;
-  await saveTasks(); const p=document.querySelector('.page.active')?.id?.replace('page-',''); renders[p]&&renders[p]();
+async function toggleTask(id, done) {
+  const t=TASKS.find(x=>x.id===id); if(!t)return; t.completed=done;
+  await saveTasks(); renderCurrent();
 }
 
-// ═══════════════════════════════
+// ══════════════════════════════════════════
 // MATRIX
-// ═══════════════════════════════
+// ══════════════════════════════════════════
 const QUADS=[{id:'Q1',label:'Q1 — ทำเลย!',icon:'🔴',cls:'q1-bg'},{id:'Q2',label:'Q2 — วางแผน',icon:'🟢',cls:'q2-bg'},{id:'Q3',label:'Q3 — มอบหมาย',icon:'🟡',cls:'q3-bg'},{id:'Q4',label:'Q4 — ตัดทิ้ง',icon:'⚫',cls:'q4-bg'}];
 let dragId=null;
 
-function renderMatrix(){
+function renderMatrix() {
   document.getElementById('matrix-grid').innerHTML=QUADS.map(q=>{
     const qt=TASKS.filter(t=>t.quadrant===q.id);
     return `<div class="quadrant ${q.cls}" id="q-${q.id}" ondragover="event.preventDefault();this.classList.add('dv')" ondragleave="this.classList.remove('dv')" ondrop="dropTask(event,'${q.id}')">
       <div class="q-hdr"><span class="q-title">${q.icon} ${q.label}</span><span class="q-cnt">${qt.filter(t=>!t.completed).length}</span></div>
       <div class="q-tasks">${qt.map(t=>`<div class="task-card ${t.completed?'tc-done':''}" draggable="true" ondragstart="dragId='${t.id}';this.classList.add('dragging')" ondragend="this.classList.remove('dragging');document.querySelectorAll('.quadrant').forEach(x=>x.classList.remove('dv'))">
-        <input type="checkbox" class="task-cb" style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer;flex-shrink:0" ${t.completed?'checked':''} onchange="toggleTask('${t.id}',${!t.completed})">
+        <input type="checkbox" class="task-cb" ${t.completed?'checked':''} onchange="toggleTask('${t.id}',${!t.completed})">
         <span class="tc-text">${esc(t.text)}</span>
         <span class="tc-del" onclick="delTask('${t.id}')">✕</span>
       </div>`).join('')}</div>
@@ -710,14 +739,14 @@ function renderMatrix(){
   }).join('');
 }
 
-async function addQTask(qid){const inp=document.getElementById('qi-'+qid),txt=inp.value.trim();if(!txt)return;inp.value='';TASKS.push({id:uid(),text:txt,quadrant:qid,project:'',completed:false,dueDate:''});await saveTasks();renderMatrix();}
-async function addTask(){const txt=document.getElementById('t-text').value.trim();if(!txt)return;TASKS.push({id:uid(),text:txt,quadrant:document.getElementById('t-quad').value,project:document.getElementById('t-proj').value.trim(),completed:false,dueDate:document.getElementById('t-due').value});document.getElementById('t-text').value='';closeModal('m-task');await saveTasks();renderMatrix();}
+async function addQTask(qid){const inp=document.getElementById('qi-'+qid),txt=inp.value.trim();if(!txt)return;inp.value='';TASKS.push({id:uid2(),text:txt,quadrant:qid,project:'',completed:false,dueDate:''});await saveTasks();renderMatrix();}
+async function addTask(){const txt=document.getElementById('t-text').value.trim();if(!txt)return;TASKS.push({id:uid2(),text:txt,quadrant:document.getElementById('t-quad').value,project:document.getElementById('t-proj').value.trim(),completed:false,dueDate:document.getElementById('t-due').value});document.getElementById('t-text').value='';closeModal('m-task');await saveTasks();renderMatrix();}
 async function delTask(id){if(!confirm('ลบ task นี้?'))return;TASKS=TASKS.filter(x=>x.id!==id);await saveTasks();renderMatrix();}
-async function dropTask(event,qid){event.preventDefault();event.currentTarget.classList.remove('dv');if(!dragId)return;const t=TASKS.find(x=>x.id===dragId);if(t&&t.quadrant!==qid){t.quadrant=qid;await saveTasks();renderMatrix();}dragId=null;}
+async function dropTask(e,qid){e.preventDefault();e.currentTarget.classList.remove('dv');if(!dragId)return;const t=TASKS.find(x=>x.id===dragId);if(t&&t.quadrant!==qid){t.quadrant=qid;await saveTasks();renderMatrix();}dragId=null;}
 
-// ═══════════════════════════════
+// ══════════════════════════════════════════
 // PROJECTS
-// ═══════════════════════════════
+// ══════════════════════════════════════════
 function renderProjects(){
   const sl={active:'🟢 Active',planning:'💡 Planning',paused:'⏸ Paused',done:'✅ Done'};
   const sc={active:'badge-active',planning:'badge-planning',paused:'badge-paused',done:'badge-done'};
@@ -739,12 +768,12 @@ function renderProjects(){
 }
 function openProjModal(id){const p=id?(DATA.projects||[]).find(x=>x.id===id):null;document.getElementById('pm-t').textContent=p?'แก้ไข':'+ Project';document.getElementById('p-id').value=p?.id||'';document.getElementById('p-title').value=p?.title||'';document.getElementById('p-desc').value=p?.desc||'';document.getElementById('p-status').value=p?.status||'planning';document.getElementById('p-prog').value=p?.progress||0;document.getElementById('p-pct-l').textContent=p?.progress||0;document.getElementById('p-color').value=p?.color||'#7c3aed';openModal('m-proj');}
 function editProj(id){openProjModal(id);}
-async function saveProject(){const id=document.getElementById('p-id').value,projs=DATA.projects||[],obj={id:id||uid(),title:document.getElementById('p-title').value.trim(),desc:document.getElementById('p-desc').value.trim(),status:document.getElementById('p-status').value,progress:parseInt(document.getElementById('p-prog').value)||0,color:document.getElementById('p-color').value};if(!obj.title)return;if(id){const i=projs.findIndex(x=>x.id===id);if(i>=0)projs[i]=obj;}else projs.push(obj);DATA.projects=projs;await saveData();closeModal('m-proj');renderProjects();}
+async function saveProject(){const id=document.getElementById('p-id').value,projs=DATA.projects||[],obj={id:id||uid2(),title:document.getElementById('p-title').value.trim(),desc:document.getElementById('p-desc').value.trim(),status:document.getElementById('p-status').value,progress:parseInt(document.getElementById('p-prog').value)||0,color:document.getElementById('p-color').value};if(!obj.title)return;if(id){const i=projs.findIndex(x=>x.id===id);if(i>=0)projs[i]=obj;}else projs.push(obj);DATA.projects=projs;await saveData();closeModal('m-proj');renderProjects();}
 async function delProj(id){if(!confirm('ลบ?'))return;DATA.projects=(DATA.projects||[]).filter(x=>x.id!==id);await saveData();renderProjects();}
 
-// ═══════════════════════════════
+// ══════════════════════════════════════════
 // GOALS
-// ═══════════════════════════════
+// ══════════════════════════════════════════
 function renderGoals(){
   document.getElementById('goals-list').innerHTML=(DATA.goals||[]).map(g=>{
     const pct=Math.min(100,Math.round(g.current/g.target*100));
@@ -762,9 +791,8 @@ function renderGoals(){
 }
 function openGoalModal(id){const g=id?(DATA.goals||[]).find(x=>x.id===id):null;document.getElementById('gm-t').textContent=g?'แก้ไข':'+ เป้าหมาย';document.getElementById('g-id').value=g?.id||'';document.getElementById('g-title').value=g?.title||'';document.getElementById('g-cur').value=g?.current||0;document.getElementById('g-tgt').value=g?.target||100;document.getElementById('g-unit').value=g?.unit||'%';document.getElementById('g-dl').value=g?.deadline||'';document.getElementById('g-color').value=g?.color||'#7c3aed';openModal('m-goal');}
 function editGoal(id){openGoalModal(id);}
-async function saveGoal(){const id=document.getElementById('g-id').value,goals=DATA.goals||[],obj={id:id||uid(),title:document.getElementById('g-title').value.trim(),current:parseFloat(document.getElementById('g-cur').value)||0,target:parseFloat(document.getElementById('g-tgt').value)||100,unit:document.getElementById('g-unit').value||'%',deadline:document.getElementById('g-dl').value,color:document.getElementById('g-color').value};if(!obj.title)return;if(id){const i=goals.findIndex(x=>x.id===id);if(i>=0)goals[i]=obj;}else goals.push(obj);DATA.goals=goals;await saveData();closeModal('m-goal');renderGoals();}
+async function saveGoal(){const id=document.getElementById('g-id').value,goals=DATA.goals||[],obj={id:id||uid2(),title:document.getElementById('g-title').value.trim(),current:parseFloat(document.getElementById('g-cur').value)||0,target:parseFloat(document.getElementById('g-tgt').value)||100,unit:document.getElementById('g-unit').value||'%',deadline:document.getElementById('g-dl').value,color:document.getElementById('g-color').value};if(!obj.title)return;if(id){const i=goals.findIndex(x=>x.id===id);if(i>=0)goals[i]=obj;}else goals.push(obj);DATA.goals=goals;await saveData();closeModal('m-goal');renderGoals();}
 async function delGoal(id){if(!confirm('ลบ?'))return;DATA.goals=(DATA.goals||[]).filter(x=>x.id!==id);await saveData();renderGoals();}
-
 function drawGoalsChart(){
   const canvas=document.getElementById('goals-chart'),goals=DATA.goals||[];if(!canvas||!goals.length)return;
   const dpr=window.devicePixelRatio||1,W=canvas.offsetWidth,H=300;canvas.width=W*dpr;canvas.height=H*dpr;
@@ -778,9 +806,9 @@ function drawGoalsChart(){
 }
 function rr(ctx,x,y,w,h,r){if(w<1)return;if(w<2*r)r=w/2;if(h<2*r)r=h/2;ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
 
-// ═══════════════════════════════
+// ══════════════════════════════════════════
 // HABITS
-// ═══════════════════════════════
+// ══════════════════════════════════════════
 function renderHabits(){
   const week=weekDates(),td=today(),habits=(DATA.habits?.items)||[],logs=(DATA.habits?.logs)||{};
   const w0=week[0],w6=week[6];
@@ -803,12 +831,12 @@ function renderHabits(){
 }
 async function toggleHabit(hid,date,done){const h=DATA.habits||{items:[],logs:{}};if(!h.logs[hid])h.logs[hid]={};if(done)h.logs[hid][date]=true;else delete h.logs[hid][date];DATA.habits=h;await saveData();renderHabits();}
 function openHabitModal(){document.getElementById('h-title').value='';openModal('m-habit');}
-async function addHabit(){const title=document.getElementById('h-title').value.trim();if(!title)return;const h=DATA.habits||{items:[],logs:{}};h.items.push({id:uid(),title});DATA.habits=h;await saveData();closeModal('m-habit');renderHabits();}
+async function addHabit(){const title=document.getElementById('h-title').value.trim();if(!title)return;const h=DATA.habits||{items:[],logs:{}};h.items.push({id:uid2(),title});DATA.habits=h;await saveData();closeModal('m-habit');renderHabits();}
 async function delHabit(id){const h=DATA.habits||{items:[],logs:{}};h.items=h.items.filter(x=>x.id!==id);delete h.logs[id];DATA.habits=h;await saveData();renderHabits();}
 
-// ═══════════════════════════════
+// ══════════════════════════════════════════
 // CALENDAR
-// ═══════════════════════════════
+// ══════════════════════════════════════════
 let calY=new Date().getFullYear(),calM=new Date().getMonth(),selDay=null;
 function renderCalendar(){
   const first=new Date(calY,calM,1),last=new Date(calY,calM+1,0),start=(first.getDay()+6)%7,td=today();
@@ -839,13 +867,22 @@ function renderCalDetail(ds){
 function calPrev(){if(calM===0){calM=11;calY--;}else calM--;renderCalendar();}
 function calNext(){if(calM===11){calM=0;calY++;}else calM++;renderCalendar();}
 
-// ═══════════════════════════════
+// ══════════════════════════════════════════
 // MODAL
-// ═══════════════════════════════
+// ══════════════════════════════════════════
 function openModal(id){document.getElementById(id).classList.add('show');}
 function closeModal(id){document.getElementById(id).classList.remove('show');}
 document.querySelectorAll('.overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('show');}));
 document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelectorAll('.overlay.show').forEach(o=>o.classList.remove('show'));});
+
+// ══════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════
+window.onload = () => {
+  const cfg = loadConfig();
+  if (cfg) initFirebase(cfg);
+  else showScreen('setup');
+};
 </script>
 </body>
 </html>
